@@ -24,7 +24,8 @@ export class MailWizzService {
   private listUid: string;
 
   constructor() {
-    this.baseUrl = process.env.MAILWIZZ_API_BASE || 'https://mvpes.sudomanaged.com/api';
+    this.baseUrl =
+      process.env.MAILWIZZ_API_BASE || 'https://mvpes.sudomanaged.com/api';
     this.apiKey = process.env.MAILWIZZ_API_KEY as string;
     this.listUid = process.env.MAILWIZZ_LIST_UID as string;
   }
@@ -37,7 +38,9 @@ export class MailWizzService {
     lifetime_donated: string,
   ) {
     // --- Step 1: Search by email ---
-    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
+    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(
+      email,
+    )}`;
     console.log('🔍 Searching subscriber by email:', searchUrl);
 
     const searchResponse = await axios.get<MailWizzSearchResponse>(searchUrl, {
@@ -48,6 +51,8 @@ export class MailWizzService {
     });
 
     const subscriberUid = searchResponse.data?.data?.subscriber_uid;
+    const existingFname = searchResponse.data?.data?.FNAME || '';
+    const existingLname = searchResponse.data?.data?.LNAME || '';
 
     if (!subscriberUid) {
       // --- If not found, create ---
@@ -78,10 +83,12 @@ export class MailWizzService {
     console.log(`♻️ Updating subscriber ${email} (UID: ${subscriberUid})`);
     const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
 
+    // ⚡ Force MailWizz to see this as a profile update
+    // Always include FNAME/LNAME, even if unchanged
     const payload = {
       EMAIL: email,
-      FNAME: first_name || '',
-      LNAME: last_name || '',
+      FNAME: first_name || existingFname,
+      LNAME: last_name || existingLname,
       DONATION_AMOUNT: donation_amount || '',
       LIFETIME_DONATED: lifetime_donated || '',
       'details[status]': 'confirmed',
