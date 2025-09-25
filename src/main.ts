@@ -2,11 +2,16 @@ import * as dotenv from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
+import * as bodyParser from 'body-parser';
 
 dotenv.config(); // Load environment variables
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // ✅ Add body-parser to support both JSON (PayPal REST) and x-www-form-urlencoded (PayPal IPN)
+  app.use(bodyParser.json({ limit: '5mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '5mb' }));
 
   // Middleware to log and attach subdomain
   app.use((req, res, next) => {
