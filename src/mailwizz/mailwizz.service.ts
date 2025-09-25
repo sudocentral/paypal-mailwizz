@@ -24,7 +24,8 @@ export class MailWizzService {
   private listUid: string;
 
   constructor() {
-    this.baseUrl = process.env.MAILWIZZ_API_BASE || 'https://mvpes.sudomanaged.com/api';
+    this.baseUrl =
+      process.env.MAILWIZZ_API_BASE || 'https://mvpes.sudomanaged.com/api';
     this.apiKey = process.env.MAILWIZZ_API_KEY as string;
     this.listUid = process.env.MAILWIZZ_LIST_UID as string;
   }
@@ -37,7 +38,9 @@ export class MailWizzService {
     lifetime_donated: string,
   ) {
     // --- Step 1: Search by email ---
-    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
+    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(
+      email,
+    )}`;
     console.log('🔍 Searching subscriber by email:', searchUrl);
 
     const searchResponse = await axios.get<MailWizzSearchResponse>(searchUrl, {
@@ -71,35 +74,84 @@ export class MailWizzService {
       });
 
       console.log('✅ Subscriber created:', createResponse.data);
-      return createResponse.data;
+    } else {
+      // --- Step 2: Update existing subscriber ---
+      console.log(`♻️ Updating subscriber ${email} (UID: ${subscriberUid})`);
+      const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
+
+      const payload = {
+        EMAIL: email,
+        FNAME: first_name || '',
+        LNAME: last_name || '',
+        DONATION_AMOUNT: donation_amount || '',
+        LIFETIME_DONATED: lifetime_donated || '',
+        'details[status]': 'confirmed',
+      };
+
+      console.log('♻️ DEBUG: About to PUT to MailWizz');
+      console.log('♻️ DEBUG: URL:', updateUrl);
+      console.log('♻️ DEBUG: Fields:', payload);
+
+      const updateResponse = await axios.put(updateUrl, qs.stringify(payload), {
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': this.apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+
+      console.log('✅ Subscriber updated:', updateResponse.data);
     }
 
-    // --- Step 2: Update existing subscriber ---
-    console.log(`♻️ Updating subscriber ${email} (UID: ${subscriberUid})`);
-    const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
+    // --- SEND_RECEIPT toggle ---
+    await this.setSendReceipt(email, '1');
+    setTimeout(() => {
+      this.setSendReceipt(email, '0').catch((e) =>
+        console.error(
+          `❌ Failed to reset SEND_RECEIPT for ${email}`,
+          e?.message || e,
+        ),
+      );
+    }, 60_000);
+  }
 
-    const payload = {
-      EMAIL: email,
-      FNAME: first_name || '',
-      LNAME: last_name || '',
-      DONATION_AMOUNT: donation_amount || '',
-      LIFETIME_DONATED: lifetime_donated || '',
-      'details[status]': 'confirmed',
-    };
-
-    console.log('♻️ DEBUG: About to PUT to MailWizz');
-    console.log('♻️ DEBUG: URL:', updateUrl);
-    console.log('♻️ DEBUG: Fields:', payload);
-
-    const updateResponse = await axios.put(updateUrl, qs.stringify(payload), {
+  private async setSendReceipt(email: string, value: '0' | '1') {
+    // Look up subscriber by email
+    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
+    const searchResponse = await axios.get<MailWizzSearchResponse>(searchUrl, {
       headers: {
         Accept: 'application/json',
         'X-Api-Key': this.apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
+    const subscriberUid = searchResponse.data?.data?.subscriber_uid;
 
-    console.log('✅ Subscriber updated:', updateResponse.data);
-    return updateResponse.data;
+    if (subscriberUid) {
+      // Update existing subscriber (avoid 409)
+      const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
+      const payload = { SEND_RECEIPT: value };
+
+      await axios.put(updateUrl, qs.stringify(payload), {
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': this.apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+    } else {
+      // Create fallback if not found
+      const form = new FormData();
+      form.append('EMAIL', email);
+      form.append('SEND_RECEIPT', value);
+
+      const createUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
+      await axios.post(createUrl, form, {
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': this.apiKey,
+          ...form.getHeaders(),
+        },
+      });
+    }
   }
 }
