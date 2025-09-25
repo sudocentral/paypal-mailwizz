@@ -19,6 +19,7 @@ import { SyncModule } from './sync/sync.module';
   providers: [
     AppService,
     MailWizzService,
+    SyncQueueService,
   ],
 })
 export class AppModule {}
