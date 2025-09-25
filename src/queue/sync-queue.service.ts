@@ -55,12 +55,16 @@ export class SyncQueueService {
       legal_last_name: d.legal_last_name,
     });
 
+    // Cast NUMERIC (string) → number safely
+    const donationAmount = Number(d.last_donation_amount ?? 0);
+    const lifetimeDonated = Number(d.lifetime_donated ?? 0);
+
     await this.mailwizzService.addOrUpdateSubscriber(
       names.first,
       names.last,
       d.email,
-      (d.last_donation_amount ?? 0).toFixed(2),
-      (d.lifetime_donated ?? 0).toFixed(2),
+      donationAmount.toFixed(2),
+      lifetimeDonated.toFixed(2),
     );
 
     await this.db.query(

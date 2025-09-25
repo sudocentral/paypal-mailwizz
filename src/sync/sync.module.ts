@@ -3,7 +3,7 @@ import { SyncService } from './sync.service';
 import { SyncController } from './sync.controller';
 import { MailWizzService } from '../mailwizz/mailwizz.service';
 import { DatabaseModule } from '../database/database.module';
-import { SyncQueueService } from './sync-queue.service';
+import { SyncQueueService } from '../queue/sync-queue.service';
 
 @Module({
   imports: [DatabaseModule],

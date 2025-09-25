@@ -2,8 +2,20 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import FormData from 'form-data';
 import * as dotenv from 'dotenv';
+import qs from 'qs';
 
 dotenv.config();
+
+interface MailWizzSearchResponse {
+  status: string;
+  data?: {
+    subscriber_uid?: string;
+    EMAIL?: string;
+    FNAME?: string;
+    LNAME?: string;
+    [key: string]: any;
+  };
+}
 
 @Injectable()
 export class MailWizzService {
@@ -12,9 +24,9 @@ export class MailWizzService {
   private listUid: string;
 
   constructor() {
-    this.baseUrl = 'https://mvpes.sudomanaged.com/api/index.php';
+    this.baseUrl = process.env.MAILWIZZ_API_BASE || 'https://mvpes.sudomanaged.com/api';
     this.apiKey = process.env.MAILWIZZ_API_KEY as string;
-    this.listUid = process.env.MAILWIZZ_LIST_UID || 'kc6447jr7p5eb'; // fallback to default
+    this.listUid = process.env.MAILWIZZ_LIST_UID as string;
   }
 
   async addOrUpdateSubscriber(
@@ -22,102 +34,72 @@ export class MailWizzService {
     last_name: string,
     email: string,
     donation_amount: string,
-    lifetime_donated: string
+    lifetime_donated: string,
   ) {
-    console.log('📤 DEBUG: Entering addOrUpdateSubscriber function...');
-    console.log('📤 DEBUG: MailWizz Payload', {
-      EMAIL: email,
-      FNAME: first_name,
-      LNAME: last_name,
-      DONATION_AMOUNT: donation_amount,
-      LIFETIME_DONATED: lifetime_donated,
+    // --- Step 1: Search by email ---
+    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
+    console.log('🔍 Searching subscriber by email:', searchUrl);
+
+    const searchResponse = await axios.get<MailWizzSearchResponse>(searchUrl, {
+      headers: {
+        Accept: 'application/json',
+        'X-Api-Key': this.apiKey,
+      },
     });
 
-    const formData = new FormData();
-    formData.append('EMAIL', email);
-    formData.append('FNAME', first_name || '');
-    formData.append('LNAME', last_name || '');
-    formData.append('DONATION_AMOUNT', donation_amount || '');
-    formData.append('LIFETIME_DONATED', lifetime_donated || '');
-    formData.append('details[status]', 'confirmed');
+    const subscriberUid = searchResponse.data?.data?.subscriber_uid;
 
-    const createUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
+    if (!subscriberUid) {
+      // --- If not found, create ---
+      console.log(`➕ Subscriber not found, creating new: ${email}`);
+      const formData = new FormData();
+      formData.append('EMAIL', email);
+      formData.append('FNAME', first_name || '');
+      formData.append('LNAME', last_name || '');
+      formData.append('DONATION_AMOUNT', donation_amount || '');
+      formData.append('LIFETIME_DONATED', lifetime_donated || '');
+      formData.append('details[status]', 'confirmed');
 
-    try {
-      // Try to create subscriber
-      const response = await axios.post(createUrl, formData, {
+      const createUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
+
+      const createResponse = await axios.post(createUrl, formData, {
         headers: {
           Accept: 'application/json',
-          'X-API-KEY': this.apiKey,
+          'X-Api-Key': this.apiKey,
           ...formData.getHeaders(),
         },
       });
 
-      console.log('✅ DEBUG: Subscriber created successfully:', response.data);
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 409) {
-        console.warn(`⚠️ Subscriber exists, updating instead: ${email}`);
-
-        // Step 1: Search subscriber by email
-        const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
-        const searchResponse = await axios.get<{ data?: { subscriber_uid?: string } }>(searchUrl, {
-          headers: {
-            Accept: 'application/json',
-            'X-API-KEY': this.apiKey,
-          },
-        });
-
-        const subscriberUid = searchResponse.data?.data?.subscriber_uid;
-        if (!subscriberUid) {
-          throw new Error(`Could not find subscriber UID for ${email}`);
-        }
-
-        // Step 2: Update subscriber by UID
-        const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
-        const updateForm = new FormData();
-        updateForm.append('EMAIL', email);  // ✅ make sure EMAIL is included
-        updateForm.append('FNAME', first_name || '');
-        updateForm.append('LNAME', last_name || '');
-        updateForm.append('DONATION_AMOUNT', donation_amount || '');
-        updateForm.append('LIFETIME_DONATED', lifetime_donated || '');
-        updateForm.append('details[status]', 'confirmed');
-
-        try {
-          const updateResponse = await axios.put(updateUrl, updateForm, {
-            headers: {
-              Accept: 'application/json',
-              'X-API-KEY': this.apiKey,
-              ...updateForm.getHeaders(),
-            },
-          });
-
-          console.log('♻️ DEBUG: Subscriber update request sent:', {
-            url: updateUrl,
-            payload: {
-              EMAIL: email,
-              FNAME: first_name,
-              LNAME: last_name,
-              DONATION_AMOUNT: donation_amount,
-              LIFETIME_DONATED: lifetime_donated,
-              status: 'confirmed',
-            },
-          });
-
-          console.log('♻️ DEBUG: Subscriber update response:', updateResponse.data);
-
-          return updateResponse.data;
-        } catch (err: any) {
-          console.error('❌ DEBUG: Update failed:', {
-            url: updateUrl,
-            error: err.response?.data || err.message,
-          });
-          throw err;
-        }
-
-        console.error('❌ DEBUG: MailWizz API Error:', error.response?.data || error.message);
-        throw error;
-      }
+      console.log('✅ Subscriber created:', createResponse.data);
+      return createResponse.data;
     }
+
+    // --- Step 2: Update existing subscriber ---
+    console.log(`♻️ Updating subscriber ${email} (UID: ${subscriberUid})`);
+    const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
+
+    const payload = {
+      EMAIL: email,
+      FNAME: first_name || '',
+      LNAME: last_name || '',
+      DONATION_AMOUNT: donation_amount || '',
+      LIFETIME_DONATED: lifetime_donated || '',
+      'details[status]': 'confirmed',
+    };
+
+    console.log('♻️ DEBUG: About to PUT to MailWizz');
+    console.log('♻️ DEBUG: URL:', updateUrl);
+    console.log('♻️ DEBUG: Fields:', payload);
+
+    const updateResponse = await axios.put(updateUrl, qs.stringify(payload), {
+      headers: {
+        Accept: 'application/json',
+        'X-Api-Key': this.apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    console.log('✅ Subscriber updated:', updateResponse.data);
+    return updateResponse.data;
   }
 }
