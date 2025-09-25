@@ -36,6 +36,7 @@ export class MailWizzService {
     email: string,
     donation_amount: string,
     lifetime_donated: string,
+    extraFields: Record<string, string> = {}, // 👈 added
   ) {
     // --- Step 1: Search by email ---
     const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(
@@ -65,6 +66,11 @@ export class MailWizzService {
       formData.append('LIFETIME_DONATED', lifetime_donated || '');
       formData.append('details[status]', 'confirmed');
 
+      // merge in extra fields
+      Object.entries(extraFields).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+
       const createUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
 
       const createResponse = await axios.post(createUrl, formData, {
@@ -92,6 +98,7 @@ export class MailWizzService {
       DONATION_AMOUNT: donation_amount || '',
       LIFETIME_DONATED: lifetime_donated || '',
       'details[status]': 'confirmed',
+      ...extraFields,
     };
 
     console.log('♻️ DEBUG: About to PUT to MailWizz');

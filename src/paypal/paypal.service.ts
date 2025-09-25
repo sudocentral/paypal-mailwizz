@@ -59,9 +59,11 @@ export class PaypalService {
         donationDate,
         resource?.id,
       );
+      await this.mailwizzService.triggerReceipt(email);
+
       return;
     }
-
+      
     // --- IPN Webhook ---
     if (payload.txn_type === 'web_accept' && payload.payment_status === 'Completed') {
       const email = payload.payer_email;
