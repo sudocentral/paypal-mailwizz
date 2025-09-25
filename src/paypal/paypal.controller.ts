@@ -11,43 +11,25 @@ export class PaypalController {
   async handleWebhook(@Req() req: Request, @Res() res: Response) {
     try {
       const contentType = req.headers['content-type'] || '';
-      let event: any;
 
       if (contentType.includes('application/json')) {
         // ✅ REST Webhook
         console.log('📩 DEBUG: Received PayPal REST Webhook:', req.body);
-        event = req.body;
+        await this.paypalService.processWebhook(req.body);
       } else if (contentType.includes('application/x-www-form-urlencoded')) {
         // ✅ IPN
         const raw = req.body instanceof Buffer ? req.body.toString() : req.body;
         const ipn = typeof raw === 'string' ? qs.parse(raw) : raw;
         console.log('📩 DEBUG: Received PayPal IPN:', ipn);
 
-        // Normalize IPN → webhook-like structure
-        event = {
-          event_type: 'IPN.WEB_ACCEPT',
-          resource: {
-            id: ipn['txn_id'],
-            amount: { value: ipn['mc_gross'] },
-            payer: {
-              email_address: ipn['payer_email'],
-              name: {
-                given_name: ipn['first_name'],
-                surname: ipn['last_name'],
-              },
-            },
-            raw: ipn, // keep full IPN in case you need it later
-          },
-        };
+        // 🚀 Pass raw IPN straight to service
+        await this.paypalService.processWebhook(ipn);
       } else {
         console.warn('⚠️ Unknown content type from PayPal:', contentType);
         return res
           .status(HttpStatus.BAD_REQUEST)
           .send({ error: 'Unsupported content type' });
       }
-
-      // Pass normalized event to service
-      await this.paypalService.processWebhook(event);
 
       return res.status(HttpStatus.OK).send({ status: 'ok' });
     } catch (error) {
