@@ -36,6 +36,35 @@ export class MailWizzService {
     donation_amount: string,
     lifetime_donated: string,
   ) {
+    // 🔹 Your existing create/update subscriber logic goes here
+    // (search by email, create if not found, update if found, etc.)
+
+    // After subscriber is created or updated, toggle SEND_RECEIPT
+    await this.setSendReceipt(email, '1');
+
+    setTimeout(() => {
+      this.setSendReceipt(email, '0').catch((e) =>
+        console.error(`❌ Failed to reset SEND_RECEIPT for ${email}`, e?.message || e),
+      );
+    }, 60_000);
+  }
+
+  private async setSendReceipt(email: string, value: '0' | '1') {
+    const form = new FormData();
+    form.append('EMAIL', email);
+    form.append('SEND_RECEIPT', value);
+
+    const url = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
+    await axios.post(url, form, {
+      headers: {
+        Accept: 'application/json',
+        'X-Api-Key': this.apiKey,
+        ...form.getHeaders(),
+      },
+    });
+  }
+}
+
     // --- Step 1: Search by email ---
     const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
     console.log('🔍 Searching subscriber by email:', searchUrl);
