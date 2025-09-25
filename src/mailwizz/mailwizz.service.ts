@@ -36,12 +36,61 @@ export class MailWizzService {
     donation_amount: string,
     lifetime_donated: string,
   ) {
-    // 🔹 Your existing create/update subscriber logic goes here
-    // (search by email, create if not found, update if found, etc.)
+    // --- Step 1: Search subscriber ---
+    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(
+      email,
+    )}`;
 
-    // After subscriber is created or updated, toggle SEND_RECEIPT
+    const searchResponse = await axios.get<MailWizzSearchResponse>(searchUrl, {
+      headers: {
+        Accept: 'application/json',
+        'X-Api-Key': this.apiKey,
+      },
+    });
+
+    const subscriberUid = searchResponse.data?.data?.subscriber_uid;
+
+    if (!subscriberUid) {
+      // --- Create ---
+      const formData = new FormData();
+      formData.append('EMAIL', email);
+      formData.append('FNAME', first_name || '');
+      formData.append('LNAME', last_name || '');
+      formData.append('DONATION_AMOUNT', donation_amount || '');
+      formData.append('LIFETIME_DONATED', lifetime_donated || '');
+      formData.append('details[status]', 'confirmed');
+
+      const createUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
+      await axios.post(createUrl, formData, {
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': this.apiKey,
+          ...formData.getHeaders(),
+        },
+      });
+    } else {
+      // --- Update ---
+      const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
+      const payload = {
+        EMAIL: email,
+        FNAME: first_name || '',
+        LNAME: last_name || '',
+        DONATION_AMOUNT: donation_amount || '',
+        LIFETIME_DONATED: lifetime_donated || '',
+        'details[status]': 'confirmed',
+      };
+
+      await axios.put(updateUrl, qs.stringify(payload), {
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': this.apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+    }
+
+    // --- SEND_RECEIPT toggle ---
     await this.setSendReceipt(email, '1');
-
     setTimeout(() => {
       this.setSendReceipt(email, '0').catch((e) =>
         console.error(`❌ Failed to reset SEND_RECEIPT for ${email}`, e?.message || e),
