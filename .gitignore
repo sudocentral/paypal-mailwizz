@@ -1,36 +1,60 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# ----------------------------------------
+# Node / NestJS
+node_modules/
+dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# local env files
-.env*.local
 .env
+.env.*        # any env-specific env files
+*.local
+*.log
+logs/
+coverage/
+.idea/
+.vscode/
 
-# vercel
-.vercel
+# ----------------------------------------
+# Python (if any python helpers or venv)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.pyc
+*.egg-info/
+*.egg
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ----------------------------------------
+# OS / Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.tmp
+*.bak
+
+# ----------------------------------------
+# PM2 logs and dumps
+.pm2/
+ecosystem.config.js
+*.pid
+*.seed
+*.pid.lock
+
+# ----------------------------------------
+# Test / Temporary
+tmp/
+*.temp
+*.out
+*.old
+
