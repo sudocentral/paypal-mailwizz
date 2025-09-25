@@ -51,6 +51,8 @@ export class MailWizzService {
     });
 
     const subscriberUid = searchResponse.data?.data?.subscriber_uid;
+    const existingFname = searchResponse.data?.data?.FNAME || '';
+    const existingLname = searchResponse.data?.data?.LNAME || '';
 
     if (!subscriberUid) {
       // --- If not found, create ---
@@ -74,84 +76,67 @@ export class MailWizzService {
       });
 
       console.log('✅ Subscriber created:', createResponse.data);
-    } else {
-      // --- Step 2: Update existing subscriber ---
-      console.log(`♻️ Updating subscriber ${email} (UID: ${subscriberUid})`);
-      const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
-
-      const payload = {
-        EMAIL: email,
-        FNAME: first_name || '',
-        LNAME: last_name || '',
-        DONATION_AMOUNT: donation_amount || '',
-        LIFETIME_DONATED: lifetime_donated || '',
-        'details[status]': 'confirmed',
-      };
-
-      console.log('♻️ DEBUG: About to PUT to MailWizz');
-      console.log('♻️ DEBUG: URL:', updateUrl);
-      console.log('♻️ DEBUG: Fields:', payload);
-
-      const updateResponse = await axios.put(updateUrl, qs.stringify(payload), {
-        headers: {
-          Accept: 'application/json',
-          'X-Api-Key': this.apiKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-
-      console.log('✅ Subscriber updated:', updateResponse.data);
+      return createResponse.data;
     }
 
-    // --- SEND_RECEIPT toggle ---
-    await this.setSendReceipt(email, '1');
-    setTimeout(() => {
-      this.setSendReceipt(email, '0').catch((e) =>
-        console.error(
-          `❌ Failed to reset SEND_RECEIPT for ${email}`,
-          e?.message || e,
-        ),
-      );
-    }, 60_000);
-  }
+    // --- Step 2: Update existing subscriber ---
+    console.log(`♻️ Updating subscriber ${email} (UID: ${subscriberUid})`);
+    const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
 
-  private async setSendReceipt(email: string, value: '0' | '1') {
-    // Look up subscriber by email
-    const searchUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/search-by-email?EMAIL=${encodeURIComponent(email)}`;
-    const searchResponse = await axios.get<MailWizzSearchResponse>(searchUrl, {
+    const payload: any = {
+      EMAIL: email,
+      FNAME: first_name || existingFname,
+      LNAME: last_name || existingLname,
+      DONATION_AMOUNT: donation_amount || '',
+      LIFETIME_DONATED: lifetime_donated || '',
+      'details[status]': 'confirmed',
+      SEND_RECEIPT: '1', // 🚀 trigger AR
+    };
+
+    console.log('♻️ DEBUG: About to PUT to MailWizz');
+    console.log('♻️ DEBUG: URL:', updateUrl);
+    console.log('♻️ DEBUG: Fields:', payload);
+
+    const updateResponse = await axios.put(updateUrl, qs.stringify(payload), {
       headers: {
         Accept: 'application/json',
         'X-Api-Key': this.apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-    const subscriberUid = searchResponse.data?.data?.subscriber_uid;
 
-    if (subscriberUid) {
-      // Update existing subscriber (avoid 409)
-      const updateUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers/${subscriberUid}`;
-      const payload = { SEND_RECEIPT: value };
+    console.log('✅ Subscriber updated:', updateResponse.data);
 
-      await axios.put(updateUrl, qs.stringify(payload), {
-        headers: {
-          Accept: 'application/json',
-          'X-Api-Key': this.apiKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-    } else {
-      // Create fallback if not found
-      const form = new FormData();
-      form.append('EMAIL', email);
-      form.append('SEND_RECEIPT', value);
+    // --- Step 3: Reset SEND_RECEIPT back to 0 after 60s ---
+    setTimeout(async () => {
+      try {
+        console.log(`⏳ Resetting SEND_RECEIPT=0 for ${email}`);
+        const resetPayload = {
+          EMAIL: email,
+          SEND_RECEIPT: '0',
+        };
 
-      const createUrl = `${this.baseUrl}/lists/${this.listUid}/subscribers`;
-      await axios.post(createUrl, form, {
-        headers: {
-          Accept: 'application/json',
-          'X-Api-Key': this.apiKey,
-          ...form.getHeaders(),
-        },
-      });
-    }
+        const resetResponse = await axios.put(
+          updateUrl,
+          qs.stringify(resetPayload),
+          {
+            headers: {
+              Accept: 'application/json',
+              'X-Api-Key': this.apiKey,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          },
+        );
+
+        console.log('✅ SEND_RECEIPT reset complete:', resetResponse.data);
+      } catch (err: any) {
+        console.error(
+          `❌ Failed to reset SEND_RECEIPT for ${email}`,
+          err.message,
+        );
+      }
+    }, 60000); // 60 seconds
+
+    return updateResponse.data;
   }
 }
