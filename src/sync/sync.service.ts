@@ -25,9 +25,10 @@ export class SyncService {
       try {
         Logger.log(`🔄 Syncing donor: ${donor.email}`, 'SyncService');
 
+    const names = pickDisplayNames(donor);
         await this.mailwizzService.addOrUpdateSubscriber(
-          donor.legal_first_name || '',
-          donor.legal_last_name || '',
+          names.first,
+          names.last,
           donor.email,
           '0.00', // optional: last donation amount (not tracked here)
           donor.lifetime_donated?.toString() || '0.00',
