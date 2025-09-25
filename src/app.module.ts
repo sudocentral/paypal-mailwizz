@@ -5,6 +5,7 @@ import { MailWizzService } from './mailwizz/mailwizz.service';
 import { PaypalModule } from './paypal/paypal.module';
 import { DatabaseModule } from './database/database.module';
 import { SyncModule } from './sync/sync.module';
+import { SyncQueueService } from './queue/sync-queue.service';
 
 @Module({
   imports: [

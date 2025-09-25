@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { MailWizzService } from '../mailwizz/mailwizz.service';
+import { pickDisplayNames } from '../utils/name-picker';
 
 @Injectable()
 export class SyncService {
